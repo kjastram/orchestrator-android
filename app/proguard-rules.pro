@@ -49,3 +49,6 @@
 
 # Keep app's Application class
 -keep class com.orchestrator.app.OrchestratorApp { *; }
+
+# Suppress missing annotation-only classes from Google Tink / Error Prone
+-dontwarn com.google.errorprone.annotations.**
