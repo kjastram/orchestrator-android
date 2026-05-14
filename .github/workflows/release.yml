@@ -18,6 +18,19 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
+      - name: Validate signing secrets
+        run: |
+          missing=()
+          [ -z "${{ secrets.KEYSTORE_BASE64 }}" ] && missing+=("KEYSTORE_BASE64")
+          [ -z "${{ secrets.KEYSTORE_PASSWORD }}" ] && missing+=("KEYSTORE_PASSWORD")
+          [ -z "${{ secrets.KEY_ALIAS }}" ] && missing+=("KEY_ALIAS")
+          [ -z "${{ secrets.KEY_PASSWORD }}" ] && missing+=("KEY_PASSWORD")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required secrets: ${missing[*]}"
+            echo "Add them at: Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+
       - name: Decode keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
