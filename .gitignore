@@ -1,11 +1,29 @@
-*.iml
+# Build outputs
+**/build/
+/captures
+
+# Gradle
 .gradle
+gradle.properties.local
+
+# Local configuration
 /local.properties
+
+# IDE
+*.iml
 /.idea
 .DS_Store
-/build
-/captures
+
+# Native builds
 .externalNativeBuild
 .cxx
+
+# Signing
 *.jks
 *.keystore
+
+# Android profiling
+*.hprof
+
+# Kotlin
+.kotlin/
