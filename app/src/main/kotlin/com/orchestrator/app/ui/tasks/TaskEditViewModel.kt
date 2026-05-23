@@ -4,7 +4,9 @@ import android.app.Application
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.orchestrator.app.data.model.Category
 import com.orchestrator.app.data.model.TaskUpdate
+import com.orchestrator.app.data.repository.CategoryRepository
 import com.orchestrator.app.data.repository.TaskRepository
 import com.orchestrator.app.nav.Screen
 import com.orchestrator.app.notification.NotificationScheduler
@@ -20,6 +22,9 @@ data class TaskEditUiState(
     val title: String = "",
     val description: String = "",
     val dueDate: String? = null,
+    val status: String = "todo",
+    val categoryId: String? = null,
+    val availableCategories: List<Category> = emptyList(),
     val notifyEnabled: Boolean = false,
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
@@ -30,6 +35,7 @@ data class TaskEditUiState(
 @HiltViewModel
 class TaskEditViewModel @Inject constructor(
     private val taskRepository: TaskRepository,
+    private val categoryRepository: CategoryRepository,
     private val application: Application,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -41,35 +47,43 @@ class TaskEditViewModel @Inject constructor(
     val uiState: StateFlow<TaskEditUiState> = _uiState.asStateFlow()
 
     init {
-        if (!isNewTask) {
-            loadTask()
+        viewModelScope.launch {
+            // Always load categories for the picker
+            categoryRepository.getCategories().onSuccess { cats ->
+                _uiState.update { it.copy(availableCategories = cats) }
+            }
+            if (!isNewTask) {
+                loadTask()
+            }
         }
     }
 
-    private fun loadTask() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            taskRepository.getTasks().fold(
-                onSuccess = { tasks ->
-                    val task = tasks.find { it.id == taskId }
-                    if (task != null) {
-                        _uiState.update {
-                            it.copy(
-                                title = task.title,
-                                description = task.description ?: "",
-                                dueDate = task.dueDate,
-                                isLoading = false
-                            )
-                        }
-                    } else {
-                        _uiState.update { it.copy(isLoading = false, error = "Task not found") }
+    private suspend fun loadTask() {
+        _uiState.update { it.copy(isLoading = true) }
+        taskRepository.getTasks().fold(
+            onSuccess = { tasks ->
+                // Search top-level tasks and their subtasks
+                val task = tasks.find { it.id == taskId }
+                    ?: tasks.flatMap { it.subtasks }.find { it.id == taskId }
+                if (task != null) {
+                    _uiState.update {
+                        it.copy(
+                            title = task.title,
+                            description = task.description ?: "",
+                            dueDate = task.dueDate,
+                            status = task.status,
+                            categoryId = task.categoryId,
+                            isLoading = false
+                        )
                     }
-                },
-                onFailure = { e ->
-                    _uiState.update { it.copy(isLoading = false, error = e.message) }
+                } else {
+                    _uiState.update { it.copy(isLoading = false, error = "Task not found") }
                 }
-            )
-        }
+            },
+            onFailure = { e ->
+                _uiState.update { it.copy(isLoading = false, error = e.message) }
+            }
+        )
     }
 
     fun onTitleChange(v: String) {
@@ -88,6 +102,14 @@ class TaskEditViewModel @Inject constructor(
         _uiState.update { it.copy(notifyEnabled = !it.notifyEnabled) }
     }
 
+    fun onCategoryChange(id: String?) {
+        _uiState.update { it.copy(categoryId = id) }
+    }
+
+    fun onStatusChange(status: String) {
+        _uiState.update { it.copy(status = status) }
+    }
+
     fun save(onDone: () -> Unit) {
         val state = _uiState.value
         if (state.title.isBlank()) {
@@ -102,7 +124,8 @@ class TaskEditViewModel @Inject constructor(
                 taskRepository.createTask(
                     title = state.title.trim(),
                     description = state.description.takeIf { it.isNotBlank() },
-                    dueDate = state.dueDate
+                    dueDate = state.dueDate,
+                    categoryId = state.categoryId
                 )
             } else {
                 taskRepository.updateTask(
@@ -110,7 +133,9 @@ class TaskEditViewModel @Inject constructor(
                     update = TaskUpdate(
                         title = state.title.trim(),
                         description = state.description.takeIf { it.isNotBlank() },
-                        due_date = state.dueDate
+                        due_date = state.dueDate,
+                        status = state.status,
+                        category_id = state.categoryId
                     )
                 )
             }

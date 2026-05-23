@@ -1,6 +1,7 @@
 package com.orchestrator.app.ui.tasks
 
 import android.app.DatePickerDialog
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,7 +20,11 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -155,6 +160,80 @@ fun TaskEditSheet(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !uiState.isSaving && !uiState.isLoading
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Status row — only for existing tasks
+            if (!viewModel.isNewTask) {
+                Text(
+                    text = "Status",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "todo" to stringResource(R.string.status_todo),
+                        "in_progress" to stringResource(R.string.status_in_progress),
+                        "done" to stringResource(R.string.status_done)
+                    ).forEach { (value, label) ->
+                        FilterChip(
+                            selected = uiState.status == value,
+                            onClick = { viewModel.onStatusChange(value) },
+                            label = { Text(label) },
+                            enabled = !uiState.isSaving && !uiState.isLoading
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            // Category dropdown
+            var categoryExpanded by remember { mutableStateOf(false) }
+            val selectedCategoryName = uiState.availableCategories
+                .find { it.id == uiState.categoryId }?.name
+                ?: stringResource(R.string.no_category)
+
+            ExposedDropdownMenuBox(
+                expanded = categoryExpanded,
+                onExpandedChange = { categoryExpanded = !categoryExpanded }
+            ) {
+                OutlinedTextField(
+                    value = selectedCategoryName,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(stringResource(R.string.category_label)) },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded)
+                    },
+                    // BOM 2024.05.00 → Material3 1.2.x → menuAnchor() with no args
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth(),
+                    enabled = !uiState.isSaving && !uiState.isLoading
+                )
+                ExposedDropdownMenu(
+                    expanded = categoryExpanded,
+                    onDismissRequest = { categoryExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.no_category)) },
+                        onClick = {
+                            viewModel.onCategoryChange(null)
+                            categoryExpanded = false
+                        }
+                    )
+                    uiState.availableCategories.forEach { cat ->
+                        DropdownMenuItem(
+                            text = { Text(cat.name) },
+                            onClick = {
+                                viewModel.onCategoryChange(cat.id)
+                                categoryExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 

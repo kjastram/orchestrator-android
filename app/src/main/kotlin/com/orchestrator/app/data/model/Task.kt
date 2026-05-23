@@ -16,7 +16,15 @@ data class Task(
     @SerializedName("updated_at")
     val updatedAt: String,
     @SerializedName("due_date")
-    val dueDate: String?
+    val dueDate: String?,
+    @SerializedName("category_id")
+    val categoryId: String?,
+    @SerializedName("parent_id")
+    val parentId: String?,
+    @SerializedName("position")
+    val position: Int,
+    @SerializedName("subtasks")
+    val subtasks: List<Task> = emptyList()
 )
 
 data class LoginRequest(
@@ -39,7 +47,13 @@ data class TaskCreate(
     @SerializedName("description")
     val description: String?,
     @SerializedName("due_date")
-    val due_date: String?
+    val due_date: String?,
+    @SerializedName("category_id")
+    val category_id: String? = null,
+    @SerializedName("parent_id")
+    val parent_id: String? = null,
+    @SerializedName("position")
+    val position: Int? = null
 )
 
 data class TaskUpdate(
@@ -50,5 +64,18 @@ data class TaskUpdate(
     @SerializedName("status")
     val status: String? = null,
     @SerializedName("due_date")
-    val due_date: String? = null
+    val due_date: String? = null,
+    @SerializedName("category_id")
+    val category_id: String? = null,
+    @SerializedName("parent_id")
+    val parent_id: String? = null
+)
+
+data class TaskReorderItem(
+    @SerializedName("id")
+    val id: String,
+    @SerializedName("position")
+    val position: Int,
+    @SerializedName("category_id")
+    val categoryId: String? = null
 )
