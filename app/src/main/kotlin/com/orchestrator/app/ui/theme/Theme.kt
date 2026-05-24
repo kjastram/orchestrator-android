@@ -11,28 +11,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
-private val PurplePrimary = Color(0xFF6650A4)
-private val PurpleOnPrimary = Color(0xFFFFFFFF)
-private val PurpleContainer = Color(0xFFEADDFF)
-private val PurpleOnContainer = Color(0xFF21005E)
+private val BluePrimary = Color(0xFF1A73E8)
+private val BlueOnPrimary = Color(0xFFFFFFFF)
+private val BlueContainer = Color(0xFFD2E3FC)
+private val BlueOnContainer = Color(0xFF001D35)
 
-private val DarkPurplePrimary = Color(0xFFCFBCFF)
-private val DarkPurpleOnPrimary = Color(0xFF381E72)
-private val DarkPurpleContainer = Color(0xFF4F378A)
-private val DarkPurpleOnContainer = Color(0xFFEADDFF)
+private val DarkBluePrimary = Color(0xFF8AB4F8)
+private val DarkBlueOnPrimary = Color(0xFF003062)
+private val DarkBlueContainer = Color(0xFF004589)
+private val DarkBlueOnContainer = Color(0xFFD2E3FC)
 
 private val LightColorScheme = lightColorScheme(
-    primary = PurplePrimary,
-    onPrimary = PurpleOnPrimary,
-    primaryContainer = PurpleContainer,
-    onPrimaryContainer = PurpleOnContainer
+    primary = BluePrimary,
+    onPrimary = BlueOnPrimary,
+    primaryContainer = BlueContainer,
+    onPrimaryContainer = BlueOnContainer
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = DarkPurplePrimary,
-    onPrimary = DarkPurpleOnPrimary,
-    primaryContainer = DarkPurpleContainer,
-    onPrimaryContainer = DarkPurpleOnContainer
+    primary = DarkBluePrimary,
+    onPrimary = DarkBlueOnPrimary,
+    primaryContainer = DarkBlueContainer,
+    onPrimaryContainer = DarkBlueOnContainer
 )
 
 @Composable

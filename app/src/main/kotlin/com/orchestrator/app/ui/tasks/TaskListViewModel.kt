@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.orchestrator.app.data.model.Category
 import com.orchestrator.app.data.model.CategoryUpdate
 import com.orchestrator.app.data.model.Task
+import com.orchestrator.app.data.model.TaskReorderItem
 import com.orchestrator.app.data.model.TaskUpdate
 import com.orchestrator.app.data.repository.AuthRepository
 import com.orchestrator.app.data.repository.CategoryRepository
@@ -22,6 +23,7 @@ data class TaskListUiState(
     val categories: List<Category> = emptyList(),
     val tasksByCategory: Map<String?, List<Task>> = emptyMap(), // null key = uncategorized
     val statusFilter: String? = null,   // null = all, "todo", "in_progress", "done"
+    val selectedCategoryId: String? = null,
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val error: String? = null
@@ -76,7 +78,19 @@ class TaskListViewModel @Inject constructor(
 
         val cats = catsResult.getOrDefault(emptyList())
         val tasks = tasksResult.getOrDefault(emptyList())
-        _uiState.update { it.copy(categories = cats, tasksByCategory = groupTasks(tasks)) }
+
+        val currentSelected = _uiState.value.selectedCategoryId
+        val newSelected = if (currentSelected == null || cats.none { it.id == currentSelected }) {
+            cats.firstOrNull()?.id
+        } else currentSelected
+
+        _uiState.update {
+            it.copy(
+                categories = cats,
+                tasksByCategory = groupTasks(tasks),
+                selectedCategoryId = newSelected
+            )
+        }
     }
 
     private fun groupTasks(tasks: List<Task>): Map<String?, List<Task>> {
@@ -85,6 +99,10 @@ class TaskListViewModel @Inject constructor(
             .filter { it.parentId == null }
             .sortedBy { it.position }
             .groupBy { it.categoryId }
+    }
+
+    fun selectCategory(id: String?) {
+        _uiState.update { it.copy(selectedCategoryId = id) }
     }
 
     fun setStatusFilter(status: String?) {
@@ -156,9 +174,14 @@ class TaskListViewModel @Inject constructor(
             categoryRepository.deleteCategory(id).fold(
                 onSuccess = {
                     _uiState.update { state ->
+                        val newCategories = state.categories.filter { it.id != id }
+                        val newSelected = if (state.selectedCategoryId == id) {
+                            newCategories.firstOrNull()?.id
+                        } else state.selectedCategoryId
                         state.copy(
-                            categories = state.categories.filter { it.id != id },
-                            tasksByCategory = state.tasksByCategory.filterKeys { it != id }
+                            categories = newCategories,
+                            tasksByCategory = state.tasksByCategory.filterKeys { it != id },
+                            selectedCategoryId = newSelected
                         )
                     }
                 },
@@ -187,6 +210,44 @@ class TaskListViewModel @Inject constructor(
     fun cycleSubtaskStatus(subtask: Task) = cycleStatus(subtask)
 
     fun deleteSubtask(subtask: Task) = deleteTask(subtask)
+
+    fun reorderTasksLocally(categoryId: String?, newOrder: List<Task>) {
+        _uiState.update { state ->
+            state.copy(
+                tasksByCategory = state.tasksByCategory.toMutableMap().apply {
+                    this[categoryId] = newOrder
+                }
+            )
+        }
+        viewModelScope.launch {
+            val items = newOrder.mapIndexed { index, task ->
+                TaskReorderItem(id = task.id, position = index, categoryId = categoryId)
+            }
+            taskRepository.reorderTasks(items).onFailure { e ->
+                _uiState.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
+    fun createQuickTask(title: String, categoryId: String?) {
+        viewModelScope.launch {
+            taskRepository.createTask(title = title, description = null, dueDate = null, categoryId = categoryId, parentId = null)
+                .fold(
+                    onSuccess = { reloadTasks() },
+                    onFailure = { e -> _uiState.update { it.copy(error = e.message) } }
+                )
+        }
+    }
+
+    fun markComplete(task: Task) {
+        val newStatus = if (task.status == "done") "todo" else "done"
+        viewModelScope.launch {
+            taskRepository.updateTask(task.id, TaskUpdate(status = newStatus)).fold(
+                onSuccess = { reloadTasks() },
+                onFailure = { e -> _uiState.update { it.copy(error = e.message) } }
+            )
+        }
+    }
 
     fun logout(onLogout: () -> Unit) {
         authRepository.logout()
