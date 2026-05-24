@@ -43,9 +43,6 @@ fun AppNavGraph(authRepository: AuthRepository) {
         composable(Screen.Tasks.route) {
             TaskListScreen(
                 viewModel = hiltViewModel(),
-                onAddTask = {
-                    navController.navigate(Screen.TaskEdit.go(Screen.TaskEdit.NEW))
-                },
                 onEditTask = { task ->
                     navController.navigate(Screen.TaskEdit.go(task.id))
                 },

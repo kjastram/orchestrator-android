@@ -30,7 +30,7 @@ import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -314,7 +314,7 @@ fun TaskEditSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            Divider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             // Details row
             Row(
@@ -366,7 +366,7 @@ fun TaskEditSheet(
                 }
             }
 
-            Divider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             // Date/time row
             Row(
@@ -387,7 +387,7 @@ fun TaskEditSheet(
                     val dateDisplay = try {
                         val d = LocalDate.parse(uiState.dueDate)
                         d.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
-                    } catch (e: Exception) { uiState.dueDate }
+                    } catch (e: Exception) { uiState.dueDate!! }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f)
@@ -410,7 +410,7 @@ fun TaskEditSheet(
                 }
             }
 
-            Divider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             // Subtasks section
             if (uiState.status != "") {
@@ -436,7 +436,7 @@ fun TaskEditSheet(
                 }
             }
 
-            Divider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             Spacer(modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.height(24.dp))

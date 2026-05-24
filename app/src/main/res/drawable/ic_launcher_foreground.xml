@@ -1,11 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+
+    <!-- Orange head (ellipse as two arcs) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,36L42,48h8v24h8V48h8L54,36zM54,72L54,72z"/>
+        android:fillColor="#FF6B2B"
+        android:pathData="M22,72 A38,33 0 1 0 98,72 A38,33 0 1 0 22,72 Z"/>
+
+    <!-- Left compound eye — negative space diamond, rotated -23° -->
+    <group
+        android:rotation="-23"
+        android:pivotX="40"
+        android:pivotY="61">
+        <path
+            android:fillColor="#F9F7F3"
+            android:pathData="M40,48 L48,61 L40,74 L32,61 Z"/>
+    </group>
+
+    <!-- Right compound eye — negative space diamond, rotated 23° -->
+    <group
+        android:rotation="23"
+        android:pivotX="80"
+        android:pivotY="61">
+        <path
+            android:fillColor="#F9F7F3"
+            android:pathData="M80,48 L88,61 L80,74 L72,61 Z"/>
+    </group>
+
+    <!-- Left antenna scape -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#D85010"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:pathData="M52,40 L35,20"/>
+
+    <!-- Left antenna funiculus -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#D85010"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M35,20 C28,14 20,15 15,10"/>
+
+    <!-- Right antenna scape -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#D85010"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:pathData="M68,40 L85,20"/>
+
+    <!-- Right antenna funiculus -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#D85010"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M85,20 C92,14 100,15 105,10"/>
+
 </vector>

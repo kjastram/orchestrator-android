@@ -200,7 +200,6 @@ fun DueDateLabel(dueDate: String?) {
 @Composable
 fun TaskListScreen(
     viewModel: TaskListViewModel,
-    onAddTask: () -> Unit,
     onEditTask: (Task) -> Unit,
     onLogout: () -> Unit
 ) {
@@ -309,7 +308,6 @@ fun TaskListScreen(
     if (showNewTaskSheet) {
         NewTaskBottomSheet(
             sheetState = newTaskSheetState,
-            selectedCategoryId = uiState.selectedCategoryId,
             onDismiss = { showNewTaskSheet = false },
             onSave = { title ->
                 viewModel.createQuickTask(title, uiState.selectedCategoryId)
@@ -463,8 +461,6 @@ fun TaskListScreen(
                                         onEditTask = onEditTask,
                                         onMarkComplete = { viewModel.markComplete(task) },
                                         onCycleSubtaskStatus = { viewModel.cycleSubtaskStatus(it) },
-                                        onDeleteSubtask = { viewModel.deleteSubtask(it) },
-                                        onAddSubtask = { title -> viewModel.addSubtask(task.id, title) },
                                         scope = scope,
                                         isDragging = isDraggingThis,
                                         dragModifier = Modifier.pointerInput(task.id) {
@@ -562,7 +558,6 @@ private fun CategorySectionHeader(
 @Composable
 private fun NewTaskBottomSheet(
     sheetState: androidx.compose.material3.SheetState,
-    selectedCategoryId: String?,
     onDismiss: () -> Unit,
     onSave: (String) -> Unit
 ) {
@@ -655,8 +650,6 @@ private fun SwipeToDismissTaskRow(
     onEditTask: (Task) -> Unit,
     onMarkComplete: () -> Unit,
     onCycleSubtaskStatus: (Task) -> Unit,
-    onDeleteSubtask: (Task) -> Unit,
-    onAddSubtask: (String) -> Unit,
     scope: kotlinx.coroutines.CoroutineScope,
     isDragging: Boolean,
     dragModifier: Modifier
@@ -714,9 +707,7 @@ private fun SwipeToDismissTaskRow(
                 task = task,
                 onEditTask = onEditTask,
                 onMarkComplete = onMarkComplete,
-                onCycleSubtaskStatus = onCycleSubtaskStatus,
-                onDeleteSubtask = onDeleteSubtask,
-                onAddSubtask = onAddSubtask
+                onCycleSubtaskStatus = onCycleSubtaskStatus
             )
         }
     }
@@ -727,9 +718,7 @@ private fun TaskFlatRow(
     task: Task,
     onEditTask: (Task) -> Unit,
     onMarkComplete: () -> Unit,
-    onCycleSubtaskStatus: (Task) -> Unit,
-    onDeleteSubtask: (Task) -> Unit,
-    onAddSubtask: (String) -> Unit
+    onCycleSubtaskStatus: (Task) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         // Main task row
@@ -781,8 +770,7 @@ private fun TaskFlatRow(
             task.subtasks.forEach { subtask ->
                 SubtaskFlatRow(
                     subtask = subtask,
-                    onCycleStatus = { onCycleSubtaskStatus(subtask) },
-                    onDelete = { onDeleteSubtask(subtask) }
+                    onCycleStatus = { onCycleSubtaskStatus(subtask) }
                 )
             }
         }
@@ -792,8 +780,7 @@ private fun TaskFlatRow(
 @Composable
 private fun SubtaskFlatRow(
     subtask: Task,
-    onCycleStatus: () -> Unit,
-    onDelete: () -> Unit
+    onCycleStatus: () -> Unit
 ) {
     Row(
         modifier = Modifier
