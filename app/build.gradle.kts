@@ -107,6 +107,9 @@ dependencies {
 
     implementation(libs.coroutines.android)
     implementation(libs.lifecycle.viewmodel.compose)
+
+    implementation(libs.vico.compose.m3)
+    implementation(libs.vico.core)
 }
 
 // Allow references to generated code

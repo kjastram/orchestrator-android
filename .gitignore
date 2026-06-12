@@ -27,3 +27,6 @@ gradle.properties.local
 
 # Kotlin
 .kotlin/
+
+# Tooling (oh-my-claudecode local state)
+.omc/

@@ -10,11 +10,10 @@ import androidx.navigation.navArgument
 import com.orchestrator.app.data.repository.AuthRepository
 import com.orchestrator.app.ui.login.LoginScreen
 import com.orchestrator.app.ui.tasks.TaskEditSheet
-import com.orchestrator.app.ui.tasks.TaskListScreen
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
-    object Tasks : Screen("tasks")
+    object Main : Screen("main")
     object TaskEdit : Screen("task_edit/{taskId}") {
         fun go(taskId: String) = "task_edit/$taskId"
         const val NEW = "new"
@@ -25,7 +24,7 @@ sealed class Screen(val route: String) {
 @Composable
 fun AppNavGraph(authRepository: AuthRepository) {
     val navController = rememberNavController()
-    val startDestination = if (authRepository.isLoggedIn()) Screen.Tasks.route else Screen.Login.route
+    val startDestination = if (authRepository.isLoggedIn()) Screen.Main.route else Screen.Login.route
 
     NavHost(navController = navController, startDestination = startDestination) {
 
@@ -33,22 +32,21 @@ fun AppNavGraph(authRepository: AuthRepository) {
             LoginScreen(
                 viewModel = hiltViewModel(),
                 onLoginSuccess = {
-                    navController.navigate(Screen.Tasks.route) {
+                    navController.navigate(Screen.Main.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 }
             )
         }
 
-        composable(Screen.Tasks.route) {
-            TaskListScreen(
-                viewModel = hiltViewModel(),
+        composable(Screen.Main.route) {
+            MainScaffold(
                 onEditTask = { task ->
                     navController.navigate(Screen.TaskEdit.go(task.id))
                 },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Tasks.route) { inclusive = true }
+                        popUpTo(Screen.Main.route) { inclusive = true }
                     }
                 }
             )
