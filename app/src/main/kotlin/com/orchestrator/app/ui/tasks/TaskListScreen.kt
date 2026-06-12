@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.Sort
-import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -432,9 +431,13 @@ fun TaskListScreen(
                         val selectedTasks = uiState.tasksByCategory[selectedCategoryId] ?: emptyList()
                         val localTasks = remember(selectedTasks) { selectedTasks.toMutableStateList() }
                         var draggingTaskId by remember { mutableStateOf<String?>(null) }
+                        // Accumulated horizontal drag of the row being dragged. A sustained
+                        // rightward drag past the threshold means "nest under the task above".
+                        var dragAccumX by remember { mutableStateOf(0f) }
                         val isDragging = draggingTaskId != null
                         val haptic = LocalHapticFeedback.current
                         val density = LocalDensity.current
+                        val nestThresholdPx = with(density) { 48.dp.toPx() }
 
                         LaunchedEffect(selectedTasks) {
                             if (!isDragging) {
@@ -454,6 +457,12 @@ fun TaskListScreen(
                             LazyColumn(modifier = Modifier.fillMaxSize()) {
                                 items(localTasks, key = { "task_${it.id}" }) { task ->
                                     val isDraggingThis = task.id == draggingTaskId
+                                    // Live preview: only top-level tasks without their own
+                                    // subtasks can be nested (backend allows 1 level only).
+                                    val nestPreview = isDraggingThis &&
+                                        dragAccumX > nestThresholdPx &&
+                                        task.subtasks.isEmpty() &&
+                                        localTasks.indexOfFirst { it.id == task.id } > 0
                                     SwipeToDismissTaskRow(
                                         task = task,
                                         snackbarHostState = snackbarHostState,
@@ -461,15 +470,19 @@ fun TaskListScreen(
                                         onEditTask = onEditTask,
                                         onMarkComplete = { viewModel.markComplete(task) },
                                         onCycleSubtaskStatus = { viewModel.cycleSubtaskStatus(it) },
+                                        onPromoteSubtask = { viewModel.promoteToTopLevel(it.id) },
                                         scope = scope,
                                         isDragging = isDraggingThis,
+                                        nestPreview = nestPreview,
                                         dragModifier = Modifier.pointerInput(task.id) {
                                             detectDragGesturesAfterLongPress(
                                                 onDragStart = {
                                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                     draggingTaskId = task.id
+                                                    dragAccumX = 0f
                                                 },
                                                 onDrag = { _, dragAmount ->
+                                                    dragAccumX += dragAmount.x
                                                     val currentIdx = localTasks.indexOfFirst { it.id == draggingTaskId }
                                                     if (currentIdx < 0) return@detectDragGesturesAfterLongPress
                                                     val itemHeightPx = with(density) { 72.dp.toPx() }
@@ -483,10 +496,26 @@ fun TaskListScreen(
                                                     }
                                                 },
                                                 onDragEnd = {
+                                                    val draggedId = draggingTaskId
+                                                    val nest = dragAccumX > nestThresholdPx
                                                     draggingTaskId = null
-                                                    viewModel.reorderTasksLocally(selectedCategoryId, localTasks.toList())
+                                                    dragAccumX = 0f
+                                                    val idx = localTasks.indexOfFirst { it.id == draggedId }
+                                                    val above = if (idx > 0) localTasks[idx - 1] else null
+                                                    val dragged = localTasks.getOrNull(idx)
+                                                    if (nest && draggedId != null && above != null &&
+                                                        dragged?.subtasks.isNullOrEmpty()
+                                                    ) {
+                                                        // Nest under the task immediately above.
+                                                        viewModel.nestUnder(draggedId, above.id)
+                                                    } else {
+                                                        viewModel.reorderTasksLocally(selectedCategoryId, localTasks.toList())
+                                                    }
                                                 },
-                                                onDragCancel = { draggingTaskId = null }
+                                                onDragCancel = {
+                                                    draggingTaskId = null
+                                                    dragAccumX = 0f
+                                                }
                                             )
                                         }
                                     )
@@ -498,10 +527,14 @@ fun TaskListScreen(
                             }
                         }
 
-                        PullToRefreshContainer(
-                            state = pullToRefreshState,
-                            modifier = Modifier.align(Alignment.TopCenter)
-                        )
+                        // Only draw the indicator while actively pulling or refreshing —
+                        // otherwise Material3 leaves its dark container circle parked at rest.
+                        if (pullToRefreshState.progress > 0f || pullToRefreshState.isRefreshing) {
+                            PullToRefreshContainer(
+                                state = pullToRefreshState,
+                                modifier = Modifier.align(Alignment.TopCenter)
+                            )
+                        }
                     }
                 }
             }
@@ -626,12 +659,6 @@ private fun NewTaskBottomSheet(
                     tint = InactiveGray,
                     modifier = Modifier.size(20.dp)
                 )
-                Icon(
-                    imageVector = Icons.Outlined.StarBorder,
-                    contentDescription = "Star",
-                    tint = InactiveGray,
-                    modifier = Modifier.size(20.dp)
-                )
             }
         }
 
@@ -650,8 +677,10 @@ private fun SwipeToDismissTaskRow(
     onEditTask: (Task) -> Unit,
     onMarkComplete: () -> Unit,
     onCycleSubtaskStatus: (Task) -> Unit,
+    onPromoteSubtask: (Task) -> Unit,
     scope: kotlinx.coroutines.CoroutineScope,
     isDragging: Boolean,
+    nestPreview: Boolean,
     dragModifier: Modifier
 ) {
     var dismissed by remember { mutableStateOf(false) }
@@ -707,7 +736,9 @@ private fun SwipeToDismissTaskRow(
                 task = task,
                 onEditTask = onEditTask,
                 onMarkComplete = onMarkComplete,
-                onCycleSubtaskStatus = onCycleSubtaskStatus
+                onCycleSubtaskStatus = onCycleSubtaskStatus,
+                onPromoteSubtask = onPromoteSubtask,
+                nestPreview = nestPreview
             )
         }
     }
@@ -718,16 +749,19 @@ private fun TaskFlatRow(
     task: Task,
     onEditTask: (Task) -> Unit,
     onMarkComplete: () -> Unit,
-    onCycleSubtaskStatus: (Task) -> Unit
+    onCycleSubtaskStatus: (Task) -> Unit,
+    onPromoteSubtask: (Task) -> Unit,
+    nestPreview: Boolean
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Main task row
+        // Main task row. When a nest is previewed, indent it to hint it will become
+        // a subtask of the task above.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(72.dp)
                 .clickable { onEditTask(task) }
-                .padding(horizontal = 16.dp),
+                .padding(start = if (nestPreview) 48.dp else 16.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Status circle — tapping cycles status
@@ -753,16 +787,6 @@ private fun TaskFlatRow(
                 )
                 DueDateLabel(dueDate = task.dueDate)
             }
-
-            // Star icon (cosmetic)
-            Icon(
-                imageVector = Icons.Outlined.StarBorder,
-                contentDescription = null,
-                tint = InactiveGray,
-                modifier = Modifier
-                    .size(20.dp)
-                    .padding(start = 4.dp)
-            )
         }
 
         // Subtasks indented below parent
@@ -770,7 +794,8 @@ private fun TaskFlatRow(
             task.subtasks.forEach { subtask ->
                 SubtaskFlatRow(
                     subtask = subtask,
-                    onCycleStatus = { onCycleSubtaskStatus(subtask) }
+                    onCycleStatus = { onCycleSubtaskStatus(subtask) },
+                    onPromote = { onPromoteSubtask(subtask) }
                 )
             }
         }
@@ -780,13 +805,50 @@ private fun TaskFlatRow(
 @Composable
 private fun SubtaskFlatRow(
     subtask: Task,
-    onCycleStatus: () -> Unit
+    onCycleStatus: () -> Unit,
+    onPromote: () -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
+    val density = LocalDensity.current
+    val promoteThresholdPx = with(density) { 48.dp.toPx() }
+    var dragging by remember { mutableStateOf(false) }
+    var accumX by remember { mutableStateOf(0f) }
+    // Long-press a subtask and drag it left past the threshold to promote it to a
+    // top-level task. The leftward outdent is previewed live.
+    val willPromote = dragging && accumX < -promoteThresholdPx
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp)
-            .padding(start = 68.dp, end = 16.dp),
+            .background(
+                if (willPromote) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                else Color.Transparent
+            )
+            .padding(start = if (willPromote) 16.dp else 68.dp, end = 16.dp)
+            .pointerInput(subtask.id) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        dragging = true
+                        accumX = 0f
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        accumX += dragAmount.x
+                    },
+                    onDragEnd = {
+                        val promote = accumX < -promoteThresholdPx
+                        dragging = false
+                        accumX = 0f
+                        if (promote) onPromote()
+                    },
+                    onDragCancel = {
+                        dragging = false
+                        accumX = 0f
+                    }
+                )
+            },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(

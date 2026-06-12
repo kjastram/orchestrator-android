@@ -1,5 +1,8 @@
 package com.orchestrator.app.nav
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
@@ -26,7 +29,17 @@ fun AppNavGraph(authRepository: AuthRepository) {
     val navController = rememberNavController()
     val startDestination = if (authRepository.isLoggedIn()) Screen.Main.route else Screen.Login.route
 
-    NavHost(navController = navController, startDestination = startDestination) {
+    // Very subtle cross-fade between destinations. Without an enter transition the
+    // incoming screen's first frame is the bare (white) window background, which
+    // reads as a hard flash; fading it in over the outgoing screen removes that.
+    NavHost(
+        navController = navController,
+        startDestination = startDestination,
+        enterTransition = { fadeIn(animationSpec = tween(180)) },
+        exitTransition = { fadeOut(animationSpec = tween(140)) },
+        popEnterTransition = { fadeIn(animationSpec = tween(180)) },
+        popExitTransition = { fadeOut(animationSpec = tween(140)) }
+    ) {
 
         composable(Screen.Login.route) {
             LoginScreen(

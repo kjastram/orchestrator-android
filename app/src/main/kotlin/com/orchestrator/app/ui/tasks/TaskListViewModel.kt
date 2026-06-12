@@ -229,6 +229,27 @@ class TaskListViewModel @Inject constructor(
         }
     }
 
+    /** Drag-and-drop: nest [taskId] as a subtask of [parentId]. */
+    fun nestUnder(taskId: String, parentId: String) {
+        if (taskId == parentId) return
+        viewModelScope.launch {
+            taskRepository.moveTask(taskId, parentId = parentId, toTopLevel = false).fold(
+                onSuccess = { reloadTasks() },
+                onFailure = { e -> _uiState.update { it.copy(error = e.message) } }
+            )
+        }
+    }
+
+    /** Drag-and-drop: promote a subtask back to a top-level task. */
+    fun promoteToTopLevel(taskId: String) {
+        viewModelScope.launch {
+            taskRepository.moveTask(taskId, parentId = null, toTopLevel = true).fold(
+                onSuccess = { reloadTasks() },
+                onFailure = { e -> _uiState.update { it.copy(error = e.message) } }
+            )
+        }
+    }
+
     fun createQuickTask(title: String, categoryId: String?) {
         viewModelScope.launch {
             taskRepository.createTask(title = title, description = null, dueDate = null, categoryId = categoryId, parentId = null)

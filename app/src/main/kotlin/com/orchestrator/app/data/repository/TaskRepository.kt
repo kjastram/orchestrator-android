@@ -3,6 +3,7 @@ package com.orchestrator.app.data.repository
 import com.orchestrator.app.data.api.ApiService
 import com.orchestrator.app.data.model.Task
 import com.orchestrator.app.data.model.TaskCreate
+import com.orchestrator.app.data.model.TaskMove
 import com.orchestrator.app.data.model.TaskReorderItem
 import com.orchestrator.app.data.model.TaskUpdate
 import javax.inject.Inject
@@ -70,6 +71,15 @@ class TaskRepository @Inject constructor(
     suspend fun reorderTasks(items: List<TaskReorderItem>): Result<List<Task>> {
         return try {
             Result.success(api.reorderTasks(items))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Nest [id] under [parentId], or promote it to top-level when [toTopLevel] is true. */
+    suspend fun moveTask(id: String, parentId: String?, toTopLevel: Boolean): Result<Task> {
+        return try {
+            Result.success(api.moveTask(id, TaskMove(parent_id = parentId, to_top_level = toTopLevel)))
         } catch (e: Exception) {
             Result.failure(e)
         }

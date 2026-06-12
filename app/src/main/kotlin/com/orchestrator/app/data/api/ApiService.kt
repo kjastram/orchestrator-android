@@ -15,8 +15,10 @@ import com.orchestrator.app.data.model.RecurringCharge
 import com.orchestrator.app.data.model.RollingAverage
 import com.orchestrator.app.data.model.RuleRequest
 import com.orchestrator.app.data.model.SyncResult
+import com.orchestrator.app.data.model.SyncStatus
 import com.orchestrator.app.data.model.Task
 import com.orchestrator.app.data.model.TaskCreate
+import com.orchestrator.app.data.model.TaskMove
 import com.orchestrator.app.data.model.TaskReorderItem
 import com.orchestrator.app.data.model.TaskUpdate
 import com.orchestrator.app.data.model.Transaction
@@ -53,6 +55,9 @@ interface ApiService {
 
     @POST("api/tasks/reorder")
     suspend fun reorderTasks(@Body items: List<TaskReorderItem>): List<Task>
+
+    @POST("api/tasks/{id}/move")
+    suspend fun moveTask(@Path("id") id: String, @Body body: TaskMove): Task
 
     @GET("api/task-categories")
     suspend fun getCategories(): List<Category>
@@ -116,4 +121,7 @@ interface ApiService {
 
     @POST("api/plaid/sync")
     suspend fun syncTransactions(): SyncResult
+
+    @GET("api/plaid/sync-status")
+    suspend fun getSyncStatus(): SyncStatus
 }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -142,15 +143,50 @@ fun FinanceDashboardScreen(
                     item("recurring") { RecurringCard(uiState) }
                     item("velocity") { VelocityCard(uiState) }
                     item("accounts") { AccountsCard(uiState) }
+                    item("lastRefreshed") { LastRefreshedFooter(uiState) }
                     item("spacer") { Spacer(Modifier.height(24.dp)) }
                 }
             }
 
-            PullToRefreshContainer(
-                state = pullState,
-                modifier = Modifier.align(Alignment.TopCenter)
-            )
+            // Only draw the indicator while actively pulling or refreshing —
+            // otherwise Material3 leaves its dark container circle parked at rest.
+            if (pullState.progress > 0f || pullState.isRefreshing) {
+                PullToRefreshContainer(
+                    state = pullState,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun LastRefreshedFooter(state: FinanceUiState) {
+    val label = state.lastRefreshedAt?.let { "Last updated $it" }
+        ?: if (state.lastSyncError) "Last sync failed" else null
+    if (label == null) return
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (state.lastSyncError) {
+            Icon(
+                imageVector = Icons.Filled.ErrorOutline,
+                contentDescription = "Last sync failed",
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(Modifier.width(4.dp))
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

@@ -17,7 +17,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.time.YearMonth
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
@@ -54,7 +58,13 @@ data class FinanceUiState(
     val velocity: VelocityInfo? = null,
     val accountGroups: List<AccountGroup> = emptyList(),
     val rangeMonths: Int = 3, // 1 | 3 | 6
-    val showAverage: Boolean = false
+    val showAverage: Boolean = false,
+    // Last successful Plaid sync, formatted for display (from the backend, shared
+    // across web + Android). Null until first loaded / if never synced.
+    val lastRefreshedAt: String? = null,
+    // True when the most recent backend sync attempt errored. The timestamp above
+    // is left at its last-known-good value in that case.
+    val lastSyncError: Boolean = false
 )
 
 @HiltViewModel
@@ -130,6 +140,7 @@ class FinanceViewModel @Inject constructor(
         val recurringD = viewModelScope.async { repository.getRecurring() }
         val budgetsD = viewModelScope.async { repository.getBudgets() }
         val rollingD = viewModelScope.async { repository.getRollingAverages() }
+        val syncStatusD = viewModelScope.async { repository.getSyncStatus() }
 
         val txResult = txD.await()
         if (txResult.isFailure) {
@@ -145,6 +156,33 @@ class FinanceViewModel @Inject constructor(
         rawNetWorth = netWorthD.await().getOrNull()
 
         recompute()
+
+        // Last-sync status is best-effort: if the endpoint is unavailable (e.g.
+        // backend not yet deployed) just leave the existing values in place.
+        syncStatusD.await().getOrNull()?.let { status ->
+            _uiState.update {
+                it.copy(
+                    lastRefreshedAt = formatTimestamp(status.lastRefreshedAt) ?: it.lastRefreshedAt,
+                    lastSyncError = status.lastSyncError
+                )
+            }
+        }
+    }
+
+    /** Format a backend ISO-8601 UTC timestamp to a short local-time label. */
+    private fun formatTimestamp(iso: String?): String? {
+        if (iso.isNullOrBlank()) return null
+        return try {
+            val instant = try {
+                OffsetDateTime.parse(iso).toInstant()
+            } catch (e: Exception) {
+                // No offset present — assume UTC.
+                LocalDateTime.parse(iso.take(19)).toInstant(ZoneOffset.UTC)
+            }
+            instant.atZone(ZoneId.systemDefault()).format(REFRESHED_LABEL)
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun recompute() {
@@ -275,5 +313,6 @@ class FinanceViewModel @Inject constructor(
 
     companion object {
         private val MONTH_LABEL: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM")
+        private val REFRESHED_LABEL: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d, h:mm a")
     }
 }

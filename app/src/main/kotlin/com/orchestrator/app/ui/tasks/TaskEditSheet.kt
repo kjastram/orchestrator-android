@@ -22,17 +22,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.SubdirectoryArrowRight
-import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -84,7 +79,6 @@ fun TaskEditSheet(
     var showDatePicker by remember { mutableStateOf(false) }
     var showCategorySheet by remember { mutableStateOf(false) }
     var showDescriptionField by remember { mutableStateOf(uiState.description.isNotBlank()) }
-    var topMenuExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let { snackbarHostState.showSnackbar(it) }
@@ -188,39 +182,6 @@ fun TaskEditSheet(
                     }
                 },
                 title = {},
-                actions = {
-                    // Star (cosmetic)
-                    IconButton(onClick = {}) {
-                        Icon(
-                            imageVector = Icons.Outlined.StarBorder,
-                            contentDescription = "Star",
-                            tint = InactiveGray
-                        )
-                    }
-                    // 3-dot menu
-                    Box {
-                        IconButton(onClick = { topMenuExpanded = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = null)
-                        }
-                        DropdownMenu(
-                            expanded = topMenuExpanded,
-                            onDismissRequest = { topMenuExpanded = false }
-                        ) {
-                            if (!viewModel.isNewTask) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.delete)) },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Delete, contentDescription = null)
-                                    },
-                                    onClick = {
-                                        topMenuExpanded = false
-                                        viewModel.deleteAndGoBack(onDone)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )

@@ -11,6 +11,7 @@ import com.orchestrator.app.data.model.RecurringCharge
 import com.orchestrator.app.data.model.RollingAverage
 import com.orchestrator.app.data.model.RuleRequest
 import com.orchestrator.app.data.model.SyncResult
+import com.orchestrator.app.data.model.SyncStatus
 import com.orchestrator.app.data.model.Transaction
 import com.orchestrator.app.data.model.TransactionPage
 import javax.inject.Inject
@@ -73,4 +74,6 @@ class FinanceRepository @Inject constructor(
         runCatching { api.createRule(RuleRequest(merchantName, category)) }
 
     suspend fun sync(): Result<SyncResult> = runCatching { api.syncTransactions() }
+
+    suspend fun getSyncStatus(): Result<SyncStatus> = runCatching { api.getSyncStatus() }
 }

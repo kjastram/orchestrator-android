@@ -54,8 +54,13 @@ app/src/main/kotlin/com/orchestrator/app/
 | ApiService | Backend router |
 |-----------|----------------|
 | `POST auth/login` | `auth.py` |
-| `api/tasks` (GET/POST), `api/tasks/{id}` (PATCH/DELETE), `api/tasks/reorder` (POST) | `tasks.py` |
+| `api/tasks` (GET/POST), `api/tasks/{id}` (PATCH/DELETE), `api/tasks/reorder` (POST), `api/tasks/{id}/move` (POST) | `tasks.py` |
 | `api/task-categories` (GET/POST), `api/task-categories/{id}` (PATCH/DELETE) | `task_categories.py` |
+| `api/accounts`, `api/accounts/net-worth`, `api/transactions*`, `api/budgets*`, `api/rules*` (finance dashboard) | `accounts.py`, `transactions.py`, `budgets.py`, `rules.py` |
+| `api/plaid/sync` (POST), `api/plaid/sync-status` (GET) | `plaid.py` |
+
+- `api/tasks/{id}/move` nests a task under a parent (`parent_id`) or promotes it to top-level (`to_top_level=true`). It exists because Gson omits null fields, so `PATCH` cannot clear `parent_id`.
+- `api/plaid/sync-status` returns the backend-persisted last-successful-sync timestamp (shared across web + Android) and a `last_sync_error` flag.
 
 `Task.kt` / `Category.kt` are the wire DTOs — if backend request/response schemas change, update these to match.
 

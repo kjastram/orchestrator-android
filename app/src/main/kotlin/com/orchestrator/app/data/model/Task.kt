@@ -79,3 +79,12 @@ data class TaskReorderItem(
     @SerializedName("category_id")
     val categoryId: String? = null
 )
+
+data class TaskMove(
+    // Top-level task to nest under. Omitted from JSON when null (Gson default),
+    // so promotion is signalled by the always-serialized [to_top_level] flag.
+    @SerializedName("parent_id")
+    val parent_id: String? = null,
+    @SerializedName("to_top_level")
+    val to_top_level: Boolean = false
+)
