@@ -2,11 +2,13 @@ package com.orchestrator.app.ui.settings
 
 import android.Manifest
 import android.app.Application
+import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import com.orchestrator.app.data.store.TelemetryPrefs
+import com.orchestrator.app.service.LocationTrackingService
+import com.orchestrator.app.util.hasBackgroundLocationPermission
 import com.orchestrator.app.worker.TelemetryScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +19,7 @@ import javax.inject.Inject
 
 data class SettingsUiState(
     val telemetryEnabled: Boolean = false,
-    // True once the two-step location grant flow is fully satisfied and the worker is enqueued.
+    // True once the two-step location grant flow is fully satisfied and the trail is running.
     val telemetryActive: Boolean = false,
     // Set when foreground granted but background ("Allow all the time") still needed.
     val awaitingBackgroundGrant: Boolean = false
@@ -32,7 +34,7 @@ class SettingsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(
         SettingsUiState(
             telemetryEnabled = telemetryPrefs.isEnabled(),
-            telemetryActive = telemetryPrefs.isEnabled() && hasBackgroundLocationPermission()
+            telemetryActive = telemetryPrefs.isEnabled() && hasBackgroundLocationPermission(application)
         )
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -45,7 +47,7 @@ class SettingsViewModel @Inject constructor(
 
     fun onDisable() {
         telemetryPrefs.setEnabled(false)
-        TelemetryScheduler.cancel(application)
+        stopTracking()
         _uiState.update {
             it.copy(telemetryEnabled = false, telemetryActive = false, awaitingBackgroundGrant = false)
         }
@@ -58,7 +60,7 @@ class SettingsViewModel @Inject constructor(
             onDisable()
             return
         }
-        if (hasBackgroundLocationPermission()) {
+        if (hasBackgroundLocationPermission(application)) {
             activate()
         } else {
             _uiState.update { it.copy(awaitingBackgroundGrant = true) }
@@ -67,7 +69,7 @@ class SettingsViewModel @Inject constructor(
 
     /**
      * Re-check on ON_RESUME (returning from the system Settings deep-link, or after a
-     * revoke elsewhere). Enqueues when fully granted; cancels when the grant is gone.
+     * revoke elsewhere). Starts the trail when fully granted; stops it when the grant is gone.
      */
     fun refreshOnResume() {
         if (!telemetryPrefs.isEnabled()) {
@@ -76,20 +78,31 @@ class SettingsViewModel @Inject constructor(
             }
             return
         }
-        if (hasBackgroundLocationPermission()) {
+        if (hasBackgroundLocationPermission(application)) {
             activate()
         } else if (_uiState.value.telemetryActive) {
-            // Grant was revoked while active — stop uploads.
-            TelemetryScheduler.cancel(application)
+            // Grant was revoked while active — stop the trail.
+            stopTracking()
             _uiState.update { it.copy(telemetryActive = false) }
         }
     }
 
     private fun activate() {
-        TelemetryScheduler.enqueue(application)
+        if (!_uiState.value.telemetryActive) {
+            ContextCompat.startForegroundService(
+                application,
+                Intent(application, LocationTrackingService::class.java)
+            )
+            TelemetryScheduler.enqueue(application)
+        }
         _uiState.update {
             it.copy(telemetryEnabled = true, telemetryActive = true, awaitingBackgroundGrant = false)
         }
+    }
+
+    private fun stopTracking() {
+        application.stopService(Intent(application, LocationTrackingService::class.java))
+        TelemetryScheduler.cancel(application)
     }
 
     fun hasForegroundLocationPermission(): Boolean {
@@ -101,14 +114,9 @@ class SettingsViewModel @Inject constructor(
             ) == PackageManager.PERMISSION_GRANTED
     }
 
-    fun hasBackgroundLocationPermission(): Boolean {
-        if (!hasForegroundLocationPermission()) return false
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ContextCompat.checkSelfPermission(
-                application, Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
-        }
+    fun hasActivityRecognitionPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            application, Manifest.permission.ACTIVITY_RECOGNITION
+        ) == PackageManager.PERMISSION_GRANTED
     }
 }

@@ -1,31 +1,35 @@
 package com.orchestrator.app.worker
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.core.content.ContextCompat
+import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.orchestrator.app.data.db.TelemetryDao
+import com.orchestrator.app.data.db.TelemetrySample
 import com.orchestrator.app.data.device.BatteryProvider
-import com.orchestrator.app.data.device.LocationProvider
+import com.orchestrator.app.data.device.StepProvider
 import com.orchestrator.app.data.model.DeviceTelemetryData
+import com.orchestrator.app.data.repository.BatchResult
 import com.orchestrator.app.data.repository.TelemetryRepository
 import com.orchestrator.app.data.store.TelemetryPrefs
 import com.orchestrator.app.data.store.TokenStore
+import com.orchestrator.app.util.hasBackgroundLocationPermission
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
-import java.time.Instant
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 
+/**
+ * Flush worker (15-min): reads battery deep-stats + step count into one buffer row, then
+ * batch-uploads the whole Room buffer and deletes uploaded rows by id. The GPS trail is owned
+ * by [com.orchestrator.app.service.LocationTrackingService] — no GPS fix is taken here.
+ */
 @HiltWorker
 class TelemetryWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted params: WorkerParameters,
-    private val locationProvider: LocationProvider,
+    private val dao: TelemetryDao,
     private val batteryProvider: BatteryProvider,
+    private val stepProvider: StepProvider,
     private val telemetryRepository: TelemetryRepository,
     private val tokenStore: TokenStore,
     private val telemetryPrefs: TelemetryPrefs
@@ -37,53 +41,68 @@ class TelemetryWorker @AssistedInject constructor(
             return Result.success()
         }
 
-        // Self-cancel if the user disabled telemetry or the background-location
-        // grant went away (revocation can restart the process).
-        if (!telemetryPrefs.isEnabled() || !hasBackgroundLocationPermission()) {
+        // Self-cancel if the user disabled telemetry or the background-location grant went away.
+        if (!telemetryPrefs.isEnabled() || !hasBackgroundLocationPermission(applicationContext)) {
             TelemetryScheduler.cancel(applicationContext)
             return Result.success()
         }
 
+        // Battery/steps are sampled at flush time (they survive reboot via WorkManager even
+        // while GPS is paused). Insert one battery/steps row into the buffer.
         val battery = batteryProvider.read()
-        val location = locationProvider.getFix() // nullable — partial battery-only row is fine
-
-        val payload = DeviceTelemetryData(
-            batteryPercent = battery.percent,
-            isCharging = battery.isCharging,
-            batteryTempC = battery.tempC,
-            batteryHealth = battery.health,
-            latitude = location?.latitude,
-            longitude = location?.longitude,
-            accuracyM = location?.let { if (it.hasAccuracy()) it.accuracy.toDouble() else null },
-            fixTimestamp = location?.let { isoFromEpochMillis(it.time) }
+        val steps = stepProvider.readCumulative()
+        dao.insert(
+            TelemetrySample(
+                batteryPercent = battery.percent,
+                isCharging = battery.isCharging,
+                batteryTempC = battery.tempC,
+                batteryHealth = battery.health,
+                stepCount = steps,
+                batteryCurrentUa = battery.currentUa,
+                batteryVoltageMv = battery.voltageMv,
+                chargeSource = battery.chargeSource
+            )
         )
 
-        return telemetryRepository.send(payload).fold(
-            onSuccess = { Result.success() },
-            onFailure = { Result.retry() } // network/HTTP failure — retry; missing fix already handled above
-        )
-    }
-
-    private fun hasBackgroundLocationPermission(): Boolean {
-        val foreground = ContextCompat.checkSelfPermission(
-            applicationContext, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(
-                applicationContext, Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-
-        val background = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ContextCompat.checkSelfPermission(
-                applicationContext, Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
+        val rows = dao.getAll()
+        if (rows.isEmpty()) {
+            return Result.success()
         }
 
-        return foreground && background
+        val ids = rows.map { it.id }
+        val batch = rows.map { it.toDto() }
+
+        return when (val result = telemetryRepository.sendBatch(batch)) {
+            is BatchResult.Sent -> {
+                dao.deleteByIds(ids)
+                Result.success()
+            }
+            is BatchResult.Retryable -> Result.retry()
+            is BatchResult.Unauthorized -> Result.success()
+            is BatchResult.Poison -> {
+                Log.w(TAG, "Dropping poison batch (${rows.size} rows), HTTP ${result.code}")
+                dao.deleteByIds(ids)
+                Result.success()
+            }
+        }
     }
 
-    private fun isoFromEpochMillis(millis: Long): String =
-        DateTimeFormatter.ISO_OFFSET_DATE_TIME
-            .format(Instant.ofEpochMilli(millis).atOffset(ZoneOffset.UTC))
+    private fun TelemetrySample.toDto() = DeviceTelemetryData(
+        batteryPercent = batteryPercent,
+        isCharging = isCharging,
+        batteryTempC = batteryTempC,
+        batteryHealth = batteryHealth,
+        latitude = latitude,
+        longitude = longitude,
+        accuracyM = accuracyM,
+        fixTimestamp = fixTimestamp,
+        stepCount = stepCount,
+        batteryCurrentUa = batteryCurrentUa,
+        batteryVoltageMv = batteryVoltageMv,
+        chargeSource = chargeSource
+    )
+
+    companion object {
+        private const val TAG = "TelemetryWorker"
+    }
 }

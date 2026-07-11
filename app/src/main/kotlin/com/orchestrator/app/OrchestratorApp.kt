@@ -1,14 +1,14 @@
 package com.orchestrator.app
 
-import android.Manifest
 import android.app.Application
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.core.content.ContextCompat
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.orchestrator.app.data.store.TelemetryPrefs
 import com.orchestrator.app.notification.TaskAlarmReceiver
+import com.orchestrator.app.service.LocationTrackingService
+import com.orchestrator.app.util.hasBackgroundLocationPermission
 import com.orchestrator.app.worker.TelemetryScheduler
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -30,30 +30,28 @@ class OrchestratorApp : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         TaskAlarmReceiver.createNotificationChannel(this)
+        createLocationChannel()
 
         // Re-enqueue on start only if opted in AND perms still present. The worker
         // self-cancels otherwise, but this keeps a stale flag from silently no-op'ing.
-        if (telemetryPrefs.isEnabled() && hasBackgroundLocationPermission()) {
+        // NOTE: the location FGS is NOT started here — a location FGS needs a visible
+        // context, so it's started from MainActivity.onStart (reboot recovery).
+        if (telemetryPrefs.isEnabled() && hasBackgroundLocationPermission(this)) {
             TelemetryScheduler.enqueue(this)
         }
     }
 
-    private fun hasBackgroundLocationPermission(): Boolean {
-        val foreground = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(
-                this, Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-
-        val background = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ContextCompat.checkSelfPermission(
-                this, Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
+    /** Low-importance channel for the location foreground service. Created before any
+     *  startForeground so the channel always exists first. */
+    private fun createLocationChannel() {
+        val channel = NotificationChannel(
+            LocationTrackingService.CHANNEL_ID,
+            LocationTrackingService.CHANNEL_NAME,
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Ongoing location trail recording"
         }
-
-        return foreground && background
+        val nm = getSystemService(NotificationManager::class.java)
+        nm.createNotificationChannel(channel)
     }
 }

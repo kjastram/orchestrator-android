@@ -59,11 +59,22 @@ fun SettingsScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // Activity recognition (steps) — requested opportunistically on first enable. Denial is
+    // NON-FATAL: steps just go null and the trail continues, so the result is ignored.
+    val activityRecognitionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* non-fatal — ignored */ }
+
     // Step 1: request FINE + COARSE together. FINE alone on API 31+ can be downgraded
     // to approximate, so both are requested to give the user the fine/coarse choice.
     val foregroundLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
+        if (viewModel.hasForegroundLocationPermission() &&
+            !viewModel.hasActivityRecognitionPermission()
+        ) {
+            activityRecognitionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+        }
         viewModel.onForegroundResult()
     }
 
@@ -96,7 +107,8 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyLarge
                     )
                     Text(
-                        text = "Periodically reports battery and location in the background.",
+                        text = "Records a GPS trail in the background and uploads it, " +
+                            "with battery and step stats, every 15 minutes.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -107,6 +119,11 @@ fun SettingsScreen(
                         if (checked) {
                             viewModel.onEnableRequested()
                             if (viewModel.hasForegroundLocationPermission()) {
+                                if (!viewModel.hasActivityRecognitionPermission()) {
+                                    activityRecognitionLauncher.launch(
+                                        Manifest.permission.ACTIVITY_RECOGNITION
+                                    )
+                                }
                                 viewModel.onForegroundResult()
                             } else {
                                 foregroundLauncher.launch(
@@ -155,9 +172,17 @@ fun SettingsScreen(
             if (uiState.telemetryActive) {
                 Spacer(modifier = Modifier.height(24.dp))
                 Text(
-                    text = "Telemetry is active. Reports roughly every 15 minutes.",
+                    text = "Trail is active. Location samples every ~5 minutes and uploads " +
+                        "every 15 minutes.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Tip: to keep the trail from being interrupted, exclude this app " +
+                        "from battery optimization in system settings.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

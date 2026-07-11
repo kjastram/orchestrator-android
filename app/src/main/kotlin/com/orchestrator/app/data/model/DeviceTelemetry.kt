@@ -23,5 +23,13 @@ data class DeviceTelemetryData(
     @SerializedName("accuracy_m")
     val accuracyM: Double? = null,
     @SerializedName("fix_timestamp")
-    val fixTimestamp: String? = null
+    val fixTimestamp: String? = null,
+    @SerializedName("step_count")
+    val stepCount: Int? = null,
+    @SerializedName("battery_current_ua")
+    val batteryCurrentUa: Int? = null,
+    @SerializedName("battery_voltage_mv")
+    val batteryVoltageMv: Int? = null,
+    @SerializedName("charge_source")
+    val chargeSource: String? = null
 )

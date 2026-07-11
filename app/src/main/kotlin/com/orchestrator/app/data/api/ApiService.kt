@@ -130,4 +130,7 @@ interface ApiService {
 
     @POST("api/device-telemetry")
     suspend fun sendTelemetry(@Body body: DeviceTelemetryData): Response<Unit>
+
+    @POST("api/device-telemetry/batch")
+    suspend fun sendTelemetryBatch(@Body body: List<DeviceTelemetryData>): Response<Unit>
 }
