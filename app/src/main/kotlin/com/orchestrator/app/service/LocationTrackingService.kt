@@ -4,9 +4,6 @@ import android.app.Notification
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.location.Location
-import android.location.LocationListener
-import android.location.LocationManager
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -14,6 +11,7 @@ import com.orchestrator.app.MainActivity
 import com.orchestrator.app.R
 import com.orchestrator.app.data.db.TelemetryDao
 import com.orchestrator.app.data.db.TelemetrySample
+import com.orchestrator.app.data.device.LocationProvider
 import com.orchestrator.app.data.store.TelemetryPrefs
 import com.orchestrator.app.util.hasBackgroundLocationPermission
 import com.orchestrator.app.util.isoFromEpochMillis
@@ -22,13 +20,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Foreground service that is the sole GPS source: samples via
- * [LocationManager.requestLocationUpdates] on GPS_PROVIDER every ~5 min and buffers each fix
- * as a location-only [TelemetrySample] into Room. The flush worker uploads the buffer.
+ * Foreground service that is the sole GPS source: every ~5 min it asks [LocationProvider] for a
+ * fix (GPS -> NETWORK -> last-known fallback chain) and buffers it as a location-only
+ * [TelemetrySample] into Room. The flush worker uploads the buffer.
+ *
+ * We poll [LocationProvider.getFix] rather than register continuous GPS updates because a
+ * GPS_PROVIDER-only continuous listener yields nothing when the phone is indoors/stationary —
+ * the fallback chain guarantees a point (at worst a repeated last-known) each cycle.
  *
  * The "Location tracking" notification channel is created in `OrchestratorApp.onCreate`, so it
  * exists before [startForeground]. START_STICKY covers process-death-while-alive; reboot
@@ -38,6 +42,9 @@ import javax.inject.Inject
 class LocationTrackingService : Service() {
 
     @Inject
+    lateinit var locationProvider: LocationProvider
+
+    @Inject
     lateinit var dao: TelemetryDao
 
     @Inject
@@ -45,13 +52,7 @@ class LocationTrackingService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private val locationManager: LocationManager? by lazy {
-        getSystemService(LOCATION_SERVICE) as? LocationManager
-    }
-
-    private val listener = LocationListener { location -> onFix(location) }
-
-    private var updatesRequested = false
+    private var sampling = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -64,37 +65,29 @@ class LocationTrackingService : Service() {
             return START_NOT_STICKY
         }
 
-        requestUpdates()
+        startSampling()
         return START_STICKY
     }
 
-    private fun requestUpdates() {
-        if (updatesRequested) return
-        val lm = locationManager ?: return
-        try {
-            lm.requestLocationUpdates(
-                LocationManager.GPS_PROVIDER,
-                UPDATE_INTERVAL_MS,
-                0f,
-                listener
-            )
-            updatesRequested = true
-        } catch (_: SecurityException) {
-            stopSelf()
-        } catch (_: IllegalArgumentException) {
-            // GPS provider absent — nothing to sample.
-            stopSelf()
+    private fun startSampling() {
+        if (sampling) return
+        sampling = true
+        scope.launch {
+            while (isActive) {
+                val fix = locationProvider.getFix()
+                if (fix != null) {
+                    dao.insert(
+                        TelemetrySample(
+                            latitude = fix.latitude,
+                            longitude = fix.longitude,
+                            accuracyM = if (fix.hasAccuracy()) fix.accuracy.toDouble() else null,
+                            fixTimestamp = isoFromEpochMillis(fix.time)
+                        )
+                    )
+                }
+                delay(UPDATE_INTERVAL_MS)
+            }
         }
-    }
-
-    private fun onFix(location: Location) {
-        val sample = TelemetrySample(
-            latitude = location.latitude,
-            longitude = location.longitude,
-            accuracyM = if (location.hasAccuracy()) location.accuracy.toDouble() else null,
-            fixTimestamp = isoFromEpochMillis(location.time)
-        )
-        scope.launch { dao.insert(sample) }
     }
 
     private fun buildNotification(): Notification {
@@ -130,13 +123,7 @@ class LocationTrackingService : Service() {
     }
 
     override fun onDestroy() {
-        if (updatesRequested) {
-            try {
-                locationManager?.removeUpdates(listener)
-            } catch (_: SecurityException) {
-            }
-            updatesRequested = false
-        }
+        sampling = false
         scope.cancel()
         super.onDestroy()
     }
