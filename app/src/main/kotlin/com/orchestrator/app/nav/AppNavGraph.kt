@@ -12,6 +12,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.orchestrator.app.data.repository.AuthRepository
 import com.orchestrator.app.ui.login.LoginScreen
+import com.orchestrator.app.ui.settings.SettingsScreen
 import com.orchestrator.app.ui.tasks.TaskEditSheet
 
 sealed class Screen(val route: String) {
@@ -22,6 +23,7 @@ sealed class Screen(val route: String) {
         const val NEW = "new"
         const val ARG_TASK_ID = "taskId"
     }
+    object Settings : Screen("settings")
 }
 
 @Composable
@@ -61,6 +63,18 @@ fun AppNavGraph(authRepository: AuthRepository) {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Main.route) { inclusive = true }
                     }
+                },
+                onOpenSettings = {
+                    navController.navigate(Screen.Settings.route)
+                }
+            )
+        }
+
+        composable(Screen.Settings.route) {
+            SettingsScreen(
+                viewModel = hiltViewModel(),
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -200,7 +201,8 @@ fun DueDateLabel(dueDate: String?) {
 fun TaskListScreen(
     viewModel: TaskListViewModel,
     onEditTask: (Task) -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -326,6 +328,12 @@ fun TaskListScreen(
                     )
                 },
                 actions = {
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Settings"
+                        )
+                    }
                     // Account avatar circle
                     Box(
                         modifier = Modifier

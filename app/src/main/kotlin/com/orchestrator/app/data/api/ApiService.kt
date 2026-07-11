@@ -8,6 +8,7 @@ import com.orchestrator.app.data.model.CategoryCreate
 import com.orchestrator.app.data.model.CategoryRule
 import com.orchestrator.app.data.model.CategoryUpdate
 import com.orchestrator.app.data.model.CategoryUpdateRequest
+import com.orchestrator.app.data.model.DeviceTelemetryData
 import com.orchestrator.app.data.model.LoginRequest
 import com.orchestrator.app.data.model.LoginResponse
 import com.orchestrator.app.data.model.NetWorth
@@ -124,4 +125,9 @@ interface ApiService {
 
     @GET("api/plaid/sync-status")
     suspend fun getSyncStatus(): SyncStatus
+
+    // ---- Device telemetry ----
+
+    @POST("api/device-telemetry")
+    suspend fun sendTelemetry(@Body body: DeviceTelemetryData): Response<Unit>
 }

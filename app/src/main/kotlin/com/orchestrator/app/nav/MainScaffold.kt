@@ -34,7 +34,8 @@ private const val TAB_FINANCE = 1
 @Composable
 fun MainScaffold(
     onEditTask: (Task) -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(TAB_TASKS) }
     var financeShowTransactions by rememberSaveable { mutableStateOf(false) }
@@ -66,7 +67,8 @@ fun MainScaffold(
                 TAB_TASKS -> TaskListScreen(
                     viewModel = hiltViewModel(),
                     onEditTask = onEditTask,
-                    onLogout = onLogout
+                    onLogout = onLogout,
+                    onOpenSettings = onOpenSettings
                 )
                 TAB_FINANCE -> {
                     if (financeShowTransactions) {

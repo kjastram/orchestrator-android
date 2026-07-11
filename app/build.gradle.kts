@@ -110,6 +110,10 @@ dependencies {
 
     implementation(libs.vico.compose.m3)
     implementation(libs.vico.core)
+
+    implementation(libs.work.runtime.ktx)
+    implementation(libs.hilt.work)
+    kapt(libs.hilt.work.compiler)
 }
 
 // Allow references to generated code
