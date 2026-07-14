@@ -13,8 +13,8 @@ android {
         applicationId = "com.orchestrator.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "2.1.0"
+        versionCode = 3
+        versionName = "2.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -80,6 +80,10 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -118,6 +122,9 @@ dependencies {
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     kapt(libs.room.compiler)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.coroutines.test)
 }
 
 // Allow references to generated code

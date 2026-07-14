@@ -15,6 +15,7 @@ import com.orchestrator.app.data.model.NetWorth
 import com.orchestrator.app.data.model.RecurringCharge
 import com.orchestrator.app.data.model.RollingAverage
 import com.orchestrator.app.data.model.RuleRequest
+import com.orchestrator.app.data.model.StepsData
 import com.orchestrator.app.data.model.SyncResult
 import com.orchestrator.app.data.model.SyncStatus
 import com.orchestrator.app.data.model.Task
@@ -133,4 +134,7 @@ interface ApiService {
 
     @POST("api/device-telemetry/batch")
     suspend fun sendTelemetryBatch(@Body body: List<DeviceTelemetryData>): Response<Unit>
+
+    @POST("api/steps")
+    suspend fun sendSteps(@Body body: StepsData): Response<Unit>
 }

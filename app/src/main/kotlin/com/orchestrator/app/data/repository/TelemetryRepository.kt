@@ -2,6 +2,7 @@ package com.orchestrator.app.data.repository
 
 import com.orchestrator.app.data.api.ApiService
 import com.orchestrator.app.data.model.DeviceTelemetryData
+import com.orchestrator.app.data.model.StepsData
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,7 +25,7 @@ sealed interface BatchResult {
 @Singleton
 class TelemetryRepository @Inject constructor(
     private val api: ApiService
-) {
+) : StepUploader {
 
     suspend fun send(data: DeviceTelemetryData): Result<Unit> {
         return try {
@@ -52,6 +53,13 @@ class TelemetryRepository @Inject constructor(
             }
         } catch (e: IOException) {
             BatchResult.Retryable(null)
+        }
+    }
+
+    override suspend fun sendSteps(body: StepsData) {
+        val response = api.sendSteps(body)
+        if (!response.isSuccessful) {
+            throw IOException("Steps POST failed with code: ${response.code()}")
         }
     }
 }

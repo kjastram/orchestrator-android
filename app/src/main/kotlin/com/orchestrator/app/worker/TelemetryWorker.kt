@@ -8,8 +8,9 @@ import androidx.work.WorkerParameters
 import com.orchestrator.app.data.db.TelemetryDao
 import com.orchestrator.app.data.db.TelemetrySample
 import com.orchestrator.app.data.device.BatteryProvider
-import com.orchestrator.app.data.device.StepProvider
+import com.orchestrator.app.data.device.DailyStepTracker
 import com.orchestrator.app.data.model.DeviceTelemetryData
+import com.orchestrator.app.data.model.StepsData
 import com.orchestrator.app.data.repository.BatchResult
 import com.orchestrator.app.data.repository.TelemetryRepository
 import com.orchestrator.app.data.store.TelemetryPrefs
@@ -17,6 +18,10 @@ import com.orchestrator.app.data.store.TokenStore
 import com.orchestrator.app.util.hasBackgroundLocationPermission
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * Flush worker (15-min): reads battery deep-stats + step count into one buffer row, then
@@ -29,7 +34,7 @@ class TelemetryWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val dao: TelemetryDao,
     private val batteryProvider: BatteryProvider,
-    private val stepProvider: StepProvider,
+    private val dailyStepTracker: DailyStepTracker,
     private val telemetryRepository: TelemetryRepository,
     private val tokenStore: TokenStore,
     private val telemetryPrefs: TelemetryPrefs
@@ -47,22 +52,23 @@ class TelemetryWorker @AssistedInject constructor(
             return Result.success()
         }
 
-        // Battery/steps are sampled at flush time (they survive reboot via WorkManager even
-        // while GPS is paused). Insert one battery/steps row into the buffer.
+        // Battery is sampled at flush time (survives reboot via WorkManager even while GPS is
+        // paused). Insert one battery row into the buffer.
         val battery = batteryProvider.read()
-        val steps = stepProvider.readCumulative()
         dao.insert(
             TelemetrySample(
                 batteryPercent = battery.percent,
                 isCharging = battery.isCharging,
                 batteryTempC = battery.tempC,
                 batteryHealth = battery.health,
-                stepCount = steps,
                 batteryCurrentUa = battery.currentUa,
                 batteryVoltageMv = battery.voltageMv,
                 chargeSource = battery.chargeSource
             )
         )
+
+        // Steps run on their own daily-total track, independent of the telemetry buffer.
+        trackSteps()
 
         val rows = dao.getAll()
         if (rows.isEmpty()) {
@@ -87,6 +93,25 @@ class TelemetryWorker @AssistedInject constructor(
         }
     }
 
+    /**
+     * Tick the daily accumulator every run, then upload the running total at most once per
+     * local hour (idempotent same-day upserts on the backend).
+     */
+    private suspend fun trackSteps() {
+        val today = LocalDate.now(ZoneId.systemDefault()).toString()
+        val total = dailyStepTracker.update(today) ?: return
+
+        val hourStamp = LocalDateTime.now(ZoneId.systemDefault()).format(HOUR_FORMAT)
+        if (hourStamp != telemetryPrefs.stepLastUploadHour) {
+            try {
+                telemetryRepository.sendSteps(StepsData(localDate = today, stepsToday = total))
+                telemetryPrefs.stepLastUploadHour = hourStamp
+            } catch (e: Exception) {
+                Log.w(TAG, "Hourly step upload failed", e)
+            }
+        }
+    }
+
     private fun TelemetrySample.toDto() = DeviceTelemetryData(
         batteryPercent = batteryPercent,
         isCharging = isCharging,
@@ -96,7 +121,6 @@ class TelemetryWorker @AssistedInject constructor(
         longitude = longitude,
         accuracyM = accuracyM,
         fixTimestamp = fixTimestamp,
-        stepCount = stepCount,
         batteryCurrentUa = batteryCurrentUa,
         batteryVoltageMv = batteryVoltageMv,
         chargeSource = chargeSource
@@ -104,5 +128,6 @@ class TelemetryWorker @AssistedInject constructor(
 
     companion object {
         private const val TAG = "TelemetryWorker"
+        private val HOUR_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH")
     }
 }

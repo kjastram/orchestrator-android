@@ -21,7 +21,7 @@ import kotlin.coroutines.resume
 @Singleton
 class StepProvider @Inject constructor(
     @ApplicationContext private val context: Context
-) {
+) : StepReader {
 
     private val sensorManager: SensorManager? =
         context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
@@ -32,7 +32,7 @@ class StepProvider @Inject constructor(
      * event. Returns null on timeout, missing sensor, or missing ACTIVITY_RECOGNITION grant.
      * Never throws.
      */
-    suspend fun readCumulative(): Int? {
+    override suspend fun readCumulative(): Int? {
         val sm = sensorManager ?: return null
         if (!hasActivityRecognitionPermission()) return null
         val sensor = sm.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) ?: return null
