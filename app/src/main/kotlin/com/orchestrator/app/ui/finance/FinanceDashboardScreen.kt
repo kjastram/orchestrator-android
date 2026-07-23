@@ -61,6 +61,10 @@ import com.orchestrator.app.ui.finance.components.Pill
 import com.orchestrator.app.ui.finance.components.ProportionRow
 import com.orchestrator.app.ui.finance.components.SectionCard
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import kotlin.math.max
 
@@ -510,13 +514,21 @@ private fun AccountsCard(state: FinanceUiState) {
                             .padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = acct.name,
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).padding(end = 12.dp)
-                        )
+                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                            Text(
+                                text = acct.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            formatLastUpdated(acct.lastUpdated)?.let { updated ->
+                                Text(
+                                    text = updated,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                         Text(
                             text = MoneyFormat.money(acct.balance),
                             style = MaterialTheme.typography.bodyMedium
@@ -563,4 +575,21 @@ private fun daysUntil(dateStr: String): Int? = try {
     ChronoUnit.DAYS.between(LocalDate.now(), LocalDate.parse(dateStr.take(10))).toInt()
 } catch (e: Exception) {
     null
+}
+
+private val UPDATED_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d, h:mm a")
+
+/** Compact "Updated MMM d, h:mm a" from an ISO datetime; null if absent/unparseable. */
+private fun formatLastUpdated(iso: String?): String? {
+    if (iso.isNullOrBlank()) return null
+    val local: LocalDateTime = try {
+        OffsetDateTime.parse(iso).atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime()
+    } catch (e: Exception) {
+        try {
+            LocalDateTime.parse(iso)
+        } catch (e2: Exception) {
+            return null
+        }
+    }
+    return "Updated ${local.format(UPDATED_FORMAT)}"
 }

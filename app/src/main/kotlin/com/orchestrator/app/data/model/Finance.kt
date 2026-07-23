@@ -27,7 +27,9 @@ data class Account(
     @SerializedName("currency")
     val currency: String = "USD",
     @SerializedName("balance")
-    val balance: Double = 0.0
+    val balance: Double = 0.0,
+    @SerializedName("last_updated")
+    val lastUpdated: String? = null // ISO datetime; null when never refreshed
 )
 
 data class NetWorth(
